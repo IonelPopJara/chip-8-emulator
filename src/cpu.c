@@ -22,7 +22,7 @@ int initialize_cpu(CPU* cpu) {
     }
 
     cpu->PC = START_PROGRAM_MEM;  // Initialize it to address 0x200 for retro-compatibility
-    cpu->SP = 0;
+    cpu->SP = -1;
     cpu->I = 0;
     cpu->delay_timer = 0;
     cpu->sound_timer = 0;
@@ -63,4 +63,174 @@ void handle_input(CPU* cpu, SDL_KeyboardEvent key) {
 
     // Only for debugging
     /*print_keypad(cpu);*/
+}
+
+uint16_t fetch(CPU* cpu) {
+    /* An instruction is two bytes,
+    * so we need to read two instructions
+    * and combine them
+    */
+
+    uint8_t first_half = cpu->memory[cpu->PC];
+    uint8_t second_half = cpu->memory[cpu->PC + 1];
+
+    // Increment to get the next two bytes
+    cpu->PC += 2;
+
+    // 11011011 | 10001000
+    // 11011011 << 8 = 1101101100000000
+    // 1101101110001000
+    uint16_t opcode = (first_half << 8) | second_half;
+
+    return opcode;
+}
+
+void execute(CPU* cpu, uint16_t opcode) {
+    // There are like 35 instructions to consider
+
+    uint8_t first = (opcode & 0xF000) >> 12;    // first nibble
+    uint8_t x = (opcode & 0x0F00) >> 8;         // second nibble
+    uint8_t y = (opcode & 0x00F0) >> 4;         // third nibble
+    uint8_t n = (opcode & 0x000F);              // fourth nibble
+    uint8_t nn = (opcode & 0x00FF);             // second byte
+    uint16_t nnn = (opcode & 0x0FFF);           // second, third, and fourth nibbles
+
+    switch(first) {
+        case 0x0:
+            switch(nn) {
+                case 0xE0:
+                    // clear screen
+                    memset(cpu->framebuffer, 0, FRAMEBUFFER_SIZE);
+                    break;
+                case 0xEE:
+                    // return
+                    cpu->PC = cpu->stack[cpu->SP]; // program pointer points to the return address
+                    cpu->SP--; // decrement the stack pointer
+                    break;
+            }
+            break;
+        case 0x1:
+            // There is only one instruction whose first nibble is 1
+            // jump
+            cpu->PC = nnn; // set the program counter to nnn mem address
+            break;
+        case 0x2:
+            // There is only one instruction whose first nibble is 2
+            // call (subroutine)
+            cpu->SP++;
+            cpu->stack[cpu->SP] = cpu->PC;
+            cpu->PC = nnn;
+            break;
+        case 0x3:
+            // There is only one instruction whose first nibble is 3
+            // skip if Vx == nn
+            if (cpu->v[x] == nn) {
+                // skip one instruction
+                cpu->PC += 2;
+            }
+            break;
+        case 0x4:
+            // There is only one instruction whose first nibble is 4
+            // skip if Vx != nn
+            if (cpu->v[x] != nn) {
+                // skip one instruction
+                cpu->PC += 2;
+            }
+            break;
+        case 0x5:
+            // There is only one instruction whose first nibble is 5
+            // skip if Vx == Vy
+            if (cpu->v[x] == cpu->v[y]) {
+                // skip one instruction
+                cpu->PC += 2;
+            }
+            break;
+        case 0x6:
+            // set vx to nn
+            cpu->v[x] = nn;
+            break;
+        case 0x7:
+            // add nn to vx
+            cpu->v[x] += nn;
+            break;
+        case 0x8:
+            // This set of instructions is decided based on the last nibble of the opcode
+            switch (n) {
+                case 0x0:
+                    // set vx to vy
+                    cpu->v[x] = cpu->v[y];
+                    break;
+                case 0x1:
+                    // binary OR
+                    cpu->v[x] = cpu->v[x] | cpu->v[y];
+                    break;
+                case 0x2:
+                    // binary AND
+                    cpu->v[x] = cpu->v[x] & cpu->v[y];
+                    break;
+                case 0x3:
+                    // binary XOR
+                    cpu->v[x] = cpu->v[x] ^ cpu->v[y];
+                    break;
+                case 0x4: {
+                    // Add
+                    int16_t tmp = cpu->v[x] + cpu->v[y];    // Check for overflow
+                    cpu->v[0xF] = (tmp > 255) ? 1 : 0;      // Assign the carry flag
+                    cpu->v[x] = tmp & 0xFF;                 // Assign the lower 8 bits of tmp
+                    break;
+                }
+                case 0x5:
+                    // Subtract vx - vy
+                    cpu->v[0xF] = cpu->v[x] > cpu->v[y] ? 1 : 0;    // Check for underflow
+                    cpu->v[x] = cpu->v[x] - cpu->v[y];              // Check for overflow
+                    break;
+                case 0x6:
+                    // TODO: Add the ability to configure the behavior
+                    // shift one bit to the right
+                    cpu->v[0xF] = cpu->v[x] & 0b1;
+                    cpu->v[x] = cpu->v[x] >> 1;
+                    break;
+                case 0x7:
+                    // Subtract vy - vx
+                    cpu->v[0xF] = cpu->v[y] > cpu->v[x] ? 1 : 0;    // Check for underflow
+                    cpu->v[x] = cpu->v[y] - cpu->v[x];              // Check for overflow
+                    break;
+                case 0xE:
+                    // TODO: Add the ability to configure the behavior
+                    // shift one bit to the left
+                    cpu->v[0xF] = (cpu->v[x] >> 7) & 0b1;
+                    cpu->v[x] = cpu->v[x] << 1;
+                    break;
+            }
+            break;
+        case 0x9:
+            // There is only one instruction whose first nibble is 9
+            // skip if Vx != Vy
+            if (cpu->v[x] != cpu->v[y]) {
+                // skip one instruction
+                cpu->PC += 2;
+            }
+            break;
+        case 0xA:
+            // do something
+            break;
+        case 0xB:
+            // do something
+            break;
+        case 0xC:
+            // do something
+            break;
+        case 0xD:
+            // do something
+            break;
+        case 0xE:
+            // do something
+            break;
+        case 0xF:
+            // do something
+            break;
+        default:
+            // Don't do anything
+            break;
+    }
 }

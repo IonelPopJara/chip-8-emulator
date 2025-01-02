@@ -2,6 +2,7 @@
 #include "display.h"
 
 const uint32_t REFRESH_RATE = 1000 / 60; // 60 Hz
+uint32_t CLOCK_SPEED = 1000 / 700; // 700 instructions per second
 
 int main(int argc, char** argv) {
 
@@ -21,7 +22,7 @@ int main(int argc, char** argv) {
     int quit = 0;
     uint32_t last_updated_time = SDL_GetTicks();
 
-    char character = 0;
+    uint32_t last_cpu_cycle = SDL_GetTicks();
 
     // Main loop
     while (!quit) {
@@ -42,6 +43,7 @@ int main(int argc, char** argv) {
 
         uint32_t current_time = SDL_GetTicks();
         if (current_time - last_updated_time >= REFRESH_RATE) {
+            last_updated_time = SDL_GetTicks();
 
             // Update timers
             if (cpu.delay_timer > 0) {
@@ -53,34 +55,15 @@ int main(int argc, char** argv) {
                 // TODO: Add sound
             }
 
-            last_updated_time = current_time;
-
-
-            // DRAW 0
-            for(int i = 0; i < 5; i++) {
-                uint8_t line = cpu.memory[START_FONT_MEM + 5 * character + i];
-                for (int j = 0; j < 8; j++) {
-                    if ((line & (0x80 >> j)) != 0) {
-                        cpu.framebuffer[(5 + i) * SCREEN_WIDTH + 2 + j] = 1;
-                    }
-                }
-            }
-
-            if (character > 14) {
-                character = 0;
-            }
-
-            // DRAW 1
-            for (int i = 0; i < 5; i++) {
-                uint8_t line = cpu.memory[START_FONT_MEM + 5 * (character + 1) + i];
-                for (int j = 0; j < 8; j++) {
-                    if ((line & (0x80 >> j)) != 0) {
-                        cpu.framebuffer[(5 + i) * SCREEN_WIDTH + 7 + j] = 1;
-                    }
-                }
-            }
-
             update_display(&display, &cpu);
+        }
+
+        if (current_time - last_cpu_cycle >= CLOCK_SPEED) {
+            last_cpu_cycle = SDL_GetTicks();
+
+            // Placeholder functions
+            uint16_t opcode = fetch(&cpu);
+            execute(&cpu, opcode);
         }
     }
 

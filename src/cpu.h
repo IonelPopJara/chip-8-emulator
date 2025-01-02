@@ -18,7 +18,7 @@ typedef struct {
     uint8_t memory[MEM_SIZE];               // Create 4Kb or 4096 bytes of RAM
     uint16_t PC;                            // Program counter
     uint16_t I;                             // Index register
-    uint8_t SP;                             // Stack pointer
+    int8_t SP;                              // Stack pointer
     uint16_t stack[STACK_DEPTH];            // Stack for 16 bit addresses with 16-levels of depth
     uint8_t v[NUM_REGS];                    // 16 one byte general purpose registers (V0 - VF)
     uint8_t delay_timer;                    // 60 Hz
@@ -36,5 +36,24 @@ static const uint8_t keymap[NUM_KEYS] = {
 
 int initialize_cpu(CPU* cpu);
 void handle_input(CPU* cpu, SDL_KeyboardEvent event);
+
+/*
+ * Returns a 16-bit opcode combining two consecutive bytes from memory.
+ * Since CHIP-8 has a simple set of instructions,
+ * we don't need a separte decode function.
+ */
+uint16_t fetch(CPU* cpu);
+
+
+/*
+ * Decodes and executes the given opcode.
+ * Extracts:
+ * X (second nibble),
+ * Y (third nibble),
+ * N (fourth nibble),
+ * NN (third and fourth nibbles),
+ * and NNN (second, third, and fourth nibbles)
+ */
+void execute(CPU* cpu, uint16_t opcode);
 
 #endif
