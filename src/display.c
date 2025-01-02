@@ -27,19 +27,25 @@ int initialize_display(Display *display) {
         return -1;
     }
 
+    display->pixels = (uint32_t*)calloc(SCREEN_WIDTH * SCREEN_HEIGHT, sizeof(uint32_t));
+
+    if (display->pixels == NULL) {
+        printf("Pixels could not be initialized! Error\n");
+        return -1;
+    }
+
     return 0;
 }
 
-void update_display(Display *display, const struct CPU *cpu) {
-    uint32_t pixels[SCREEN_WIDTH * SCREEN_HEIGHT];
+void update_display(Display *display, CPU *cpu) {
 
     // Convert our 1-bit framebuffer to 32-bit pixels
     for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
-        pixels[i] = cpu->framebuffer[i] ? 0xFFFFFFFF : 0x000000FF;
+        display->pixels[i] = cpu->framebuffer[i] ? 0xFFFFFFFF : 0x000000FF;
     }
 
     // Update texture with pixel data
-    SDL_UpdateTexture(display->texture, NULL, pixels, SCREEN_WIDTH * sizeof(uint32_t));
+    SDL_UpdateTexture(display->texture, NULL, display->pixels, SCREEN_WIDTH * sizeof(uint32_t));
 
     // Clear renderer
     SDL_RenderClear(display->renderer);

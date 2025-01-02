@@ -1,3 +1,4 @@
+#include <SDL2/SDL.h>
 #include "cpu.h"
 #include "font.h"
 
@@ -42,4 +43,24 @@ int initialize_cpu(CPU* cpu) {
     }
 
     return 0;
+}
+
+void print_keypad(CPU* cpu) {
+    printf("\n");
+    printf("1: %d | 2: %d | 3: %d | C: %d\n", cpu->keypad[0], cpu->keypad[1], cpu->keypad[2], cpu->keypad[3]);
+    printf("4: %d | 5: %d | 6: %d | D: %d\n", cpu->keypad[4], cpu->keypad[5], cpu->keypad[6], cpu->keypad[7]);
+    printf("7: %d | 8: %d | 9: %d | E: %d\n", cpu->keypad[8], cpu->keypad[9], cpu->keypad[10], cpu->keypad[11]);
+    printf("A: %d | 0: %d | B: %d | F: %d\n", cpu->keypad[12], cpu->keypad[13], cpu->keypad[14], cpu->keypad[15]);
+}
+
+void handle_input(CPU* cpu, SDL_KeyboardEvent key) {
+    for (int i = 0; i < NUM_KEYS; i++) {
+        if (key.keysym.scancode == keymap[i]) {
+            cpu->keypad[i] = (key.type == SDL_KEYDOWN) ? 1 : 0;
+            break;
+        }
+    }
+
+    // Only for debugging
+    /*print_keypad(cpu);*/
 }

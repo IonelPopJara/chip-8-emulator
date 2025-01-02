@@ -21,12 +21,22 @@ int main(int argc, char** argv) {
     int quit = 0;
     uint32_t last_updated_time = SDL_GetTicks();
 
+    char character = 0;
+
     // Main loop
     while (!quit) {
         // Handle events
         while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                quit = 1;
+            switch (event.type) {
+                case SDL_QUIT:
+                    quit = 1;
+                    break;
+                case SDL_KEYDOWN:
+                    handle_input(&cpu, event.key);
+                    break;
+                case SDL_KEYUP:
+                    handle_input(&cpu, event.key);
+                    break;
             }
         }
 
@@ -44,8 +54,11 @@ int main(int argc, char** argv) {
             }
 
             last_updated_time = current_time;
+
+
+            // DRAW 0
             for(int i = 0; i < 5; i++) {
-                uint8_t line = cpu.memory[START_FONT_MEM + 5 * 0 + i];
+                uint8_t line = cpu.memory[START_FONT_MEM + 5 * character + i];
                 for (int j = 0; j < 8; j++) {
                     if ((line & (0x80 >> j)) != 0) {
                         cpu.framebuffer[(5 + i) * SCREEN_WIDTH + 2 + j] = 1;
@@ -53,8 +66,13 @@ int main(int argc, char** argv) {
                 }
             }
 
+            if (character > 14) {
+                character = 0;
+            }
+
+            // DRAW 1
             for (int i = 0; i < 5; i++) {
-                uint8_t line = cpu.memory[START_FONT_MEM + 5 * 1 + i];
+                uint8_t line = cpu.memory[START_FONT_MEM + 5 * (character + 1) + i];
                 for (int j = 0; j < 8; j++) {
                     if ((line & (0x80 >> j)) != 0) {
                         cpu.framebuffer[(5 + i) * SCREEN_WIDTH + 7 + j] = 1;
