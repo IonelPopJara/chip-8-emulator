@@ -1,7 +1,7 @@
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c11 $(shell sdl2-config --cflags)
-LDFLAGS = $(shell sdl2-config --libs)
+CFLAGS = -Wall -Wextra -std=c11 $(shell sdl2-config --cflags) -D_GNU_SOURCE
+LDFLAGS = $(shell sdl2-config --libs) -lm
 
 # Directories
 SRC_DIR = src
@@ -28,6 +28,6 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJ_DIR) $(TARGET)
+	rm -rf $(OBJ_DIR) $(TARGET)
 
 .PHONY: all clean

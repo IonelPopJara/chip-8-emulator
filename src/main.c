@@ -2,6 +2,7 @@
 #include "cpu.h"
 #include "display.h"
 #include "error.h"
+#include "audio.h"
 
 const uint32_t REFRESH_RATE = 1000 / 60; // 60 Hz
 uint32_t CLOCK_SPEED = 1000 / 700; // 700 instructions per second
@@ -50,6 +51,12 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    Audio audio;
+
+    if (initialize_audio(&audio) < 0) {
+        return 1;
+    }
+
     if (load_rom(&cpu, rom_path) < 0) {
         print_error(ERROR_ROM_LOAD, "ROM could not be loaded");
         return 1;
@@ -89,7 +96,9 @@ int main(int argc, char** argv) {
 
             if (cpu.sound_timer > 0) {
                 cpu.sound_timer--;
-                // TODO: Add sound
+                toggle_beep(&audio, 1);
+            } else {
+                toggle_beep(&audio, 0);
             }
 
             update_display(&display, &cpu);
@@ -106,6 +115,7 @@ int main(int argc, char** argv) {
 
     // Cleanup
     cleanup_display(&display);
+    cleanup_audio(&audio);
 
     return 0;
 }
