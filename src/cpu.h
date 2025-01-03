@@ -56,4 +56,6 @@ uint16_t fetch(CPU* cpu);
  */
 void execute(CPU* cpu, uint16_t opcode);
 
+int load_rom(CPU* cpu, const char* filename);
+
 #endif

@@ -1,3 +1,4 @@
 *.o
 obj/
 chip8
+*.ch8

@@ -1,8 +1,15 @@
 #include <SDL2/SDL.h>
+#include <stdlib.h>
+#include <time.h>
 #include "cpu.h"
 #include "font.h"
 
+// This is to implement the different quirks of the SUPER-CHIP and CHIP-48
+/*#define ORIGINAL_CHIP*/
+
 int initialize_cpu(CPU* cpu) {
+    // Set a seed so we get random numbers each time
+    srand(time(NULL));
 
     // Check for null pointers
     if (cpu == NULL) {
@@ -146,10 +153,12 @@ void execute(CPU* cpu, uint16_t opcode) {
             }
             break;
         case 0x6:
+            // There is only one instruction whose first nibble is 6
             // set vx to nn
             cpu->v[x] = nn;
             break;
         case 0x7:
+            // There is only one instruction whose first nibble is 7
             // add nn to vx
             cpu->v[x] += nn;
             break;
@@ -185,7 +194,9 @@ void execute(CPU* cpu, uint16_t opcode) {
                     cpu->v[x] = cpu->v[x] - cpu->v[y];              // Check for overflow
                     break;
                 case 0x6:
-                    // TODO: Add the ability to configure the behavior
+#ifdef ORIGINAL_CHIP
+                    cpu->v[x] = cpu->v[y];
+#endif
                     // shift one bit to the right
                     cpu->v[0xF] = cpu->v[x] & 0b1;
                     cpu->v[x] = cpu->v[x] >> 1;
@@ -196,7 +207,9 @@ void execute(CPU* cpu, uint16_t opcode) {
                     cpu->v[x] = cpu->v[y] - cpu->v[x];              // Check for overflow
                     break;
                 case 0xE:
-                    // TODO: Add the ability to configure the behavior
+#ifdef ORIGINAL_CHIP
+                    cpu->v[x] = cpu->v[y];
+#endif
                     // shift one bit to the left
                     cpu->v[0xF] = (cpu->v[x] >> 7) & 0b1;
                     cpu->v[x] = cpu->v[x] << 1;
@@ -212,25 +225,178 @@ void execute(CPU* cpu, uint16_t opcode) {
             }
             break;
         case 0xA:
-            // do something
+            // There is only one instruction whose first nibble is A
+            // Set the index register to the value nnn
+            cpu->I = nnn;
             break;
         case 0xB:
-            // do something
+            // There is only one instruction whose first nibble is B
+            // But it's ambiguous :/
+#ifdef ORIGINAL_CHIP
+            cpu->PC = cpu->v[0] + nnn;
+#else
+            cpu->PC = cpu->v[x] + nnn;
+#endif
             break;
-        case 0xC:
-            // do something
+        case 0xC: {
+            // There is only one instruction whose first nibble is C
+            // generate a random number and binary ANDs it with nn
+            uint8_t random = rand() % 256;
+            random = random & nn;
+            // put the result in vx
+            cpu->v[x] = random;
             break;
-        case 0xD:
-            // do something
+        }
+        case 0xD: {
+            // There is only one instruction whose first nibble is D,
+            // and it's the most convoluted to write
+            uint8_t x_start = cpu->v[x] % 64;
+            uint8_t y_start = cpu->v[y] % 32;
+            cpu->v[0xF] = 0;
+
+            // Iterate over the rows
+            for (size_t row = 0; row < n; row++) {
+                if (y_start + row >= 32) {
+                    break;
+                }
+
+                // Get the nth byte of sprite data
+                uint8_t nth = cpu->memory[cpu->I + row];
+
+                // Iterate over the columns
+                for (size_t col = 0; col < 8; col++) {
+                    if (x_start + col >= 64) {
+                        break;
+                    }
+
+                    uint8_t nth_pixel = (nth & (0x80 >> col)) ? 1 : 0;
+                    uint16_t pixel_index = x_start + col + ((y_start + row) * 64);
+
+                    // Check collision
+                    uint8_t current_pixel = cpu->framebuffer[pixel_index];
+                    if (nth_pixel & current_pixel) {
+                        cpu->v[0xF] = 1;
+                    }
+
+                    cpu->framebuffer[pixel_index] ^= nth_pixel;
+                }
+            }
             break;
+        }
         case 0xE:
-            // do something
+            switch (nn) {
+                case 0x9E:
+                    // Skip if the key in register x is pressed
+                    if (cpu->keypad[cpu->v[x]] == 1) {
+                        cpu->PC += 2;
+                    }
+                    break;
+                case 0xA1:
+                    // Skip if the key in register x is not pressed
+                    if (cpu->keypad[cpu->v[x]] == 0) {
+                        cpu->PC += 2;
+                    }
+                    break;
+            }
             break;
         case 0xF:
-            // do something
+            switch (nn) {
+                case 0x07:
+                    cpu->v[x] = cpu->delay_timer;
+                    break;
+                case 0x0A: {
+                    // wait for any key press
+                    int key_pressed = -1;
+                    for (uint8_t i = 0; i < NUM_KEYS; i++) {
+                        if (cpu->keypad[i] == 1) {
+                            cpu->v[x] = i;
+                            key_pressed = 1;
+                            break;
+                        }
+                    }
+
+                    if (key_pressed == -1) {
+                        cpu->PC -= 2;
+                    }
+                    break;
+                }
+                case 0x15:
+                    cpu->delay_timer = cpu->v[x];
+                    break;
+                case 0x18:
+                    cpu->sound_timer = cpu->v[x];
+                    break;
+                case 0x1E: {
+                    uint16_t tmp = cpu->I + cpu->v[x];
+                    if (tmp > 0xFFF) {
+                        cpu->v[0xF] = 1;
+
+                    }
+                    cpu->I += cpu->v[x];
+                    break;
+                }
+                case 0x29: {
+                    uint8_t hex_char = (cpu->v[x] & 0x0F); // Hex character stored in vx
+                    cpu->I = START_FONT_MEM + (hex_char * 5);
+                    break;
+                }
+                case 0x33: {
+                    // Binary coded decimal conversion
+                    uint8_t num = cpu->v[x];
+
+                    for (int8_t i = 2; i >= 0; i--) {
+                        cpu->memory[cpu->I + i] = num % 10;
+                        num /= 10;
+                    }
+
+                    break;
+                }
+                case 0x55:
+                    // Ambiguous instruction but according to the guide it didn't matter much
+                    for (uint8_t i = 0; i <= x; i++) {
+                        cpu->memory[cpu->I + i] = cpu->v[i];
+                    }
+                    break;
+                case 0x65:
+                    // Ambiguous instruction but according to the guide it didn't matter much
+                    for (uint8_t i = 0; i <= x; i++) {
+                        cpu->v[i] = cpu->memory[cpu->I + i];
+                    }
+                    break;
+            }
             break;
         default:
             // Don't do anything
             break;
     }
+}
+
+int load_rom(CPU* cpu, const char* filename) {
+    FILE* rom = fopen(filename, "rb");
+    if (rom == NULL) {
+        printf("Error opening ROM file\n");
+        return -1;
+    }
+
+    // Get the file size
+    fseek(rom, 0, SEEK_END);
+    long rom_size = ftell(rom);
+    rewind(rom);
+
+    // Make sure the rom fits in the memory
+    if (rom_size > MEM_SIZE - START_PROGRAM_MEM) {
+        printf("Error ROM too large\n");
+        return -1;
+    }
+
+    // Load rom into memory starting at START_PROGRAM_MEM (0x200)
+    size_t bytes_read = fread(&cpu->memory[START_PROGRAM_MEM], 1, rom_size, rom);
+    if (bytes_read != rom_size) {
+        printf("Error reading ROM file\n");
+        fclose(rom);
+        return -1;
+    }
+
+    fclose(rom);
+    return 0;
 }

@@ -18,6 +18,11 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (load_rom(&cpu, "./src/ibm_logo.ch8") < 0) {
+        printf("Error!\n");
+        return 1;
+    }
+
     SDL_Event event;
     int quit = 0;
     uint32_t last_updated_time = SDL_GetTicks();
