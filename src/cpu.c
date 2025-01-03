@@ -3,9 +3,7 @@
 #include <time.h>
 #include "cpu.h"
 #include "font.h"
-
-// This is to implement the different quirks of the SUPER-CHIP and CHIP-48
-/*#define ORIGINAL_CHIP*/
+#include "error.h"
 
 int initialize_cpu(CPU* cpu) {
     // Set a seed so we get random numbers each time
@@ -33,6 +31,7 @@ int initialize_cpu(CPU* cpu) {
     cpu->I = 0;
     cpu->delay_timer = 0;
     cpu->sound_timer = 0;
+    cpu->original_mode = 0;
 
     // Clear framebuffer
     if (memset(cpu->framebuffer, 0, FRAMEBUFFER_SIZE) == NULL) {
@@ -194,9 +193,10 @@ void execute(CPU* cpu, uint16_t opcode) {
                     cpu->v[x] = cpu->v[x] - cpu->v[y];              // Check for overflow
                     break;
                 case 0x6:
-#ifdef ORIGINAL_CHIP
-                    cpu->v[x] = cpu->v[y];
-#endif
+                    if (cpu->original_mode == 1) {
+                        cpu->v[x] = cpu->v[y];
+
+                    }
                     // shift one bit to the right
                     cpu->v[0xF] = cpu->v[x] & 0b1;
                     cpu->v[x] = cpu->v[x] >> 1;
@@ -207,9 +207,9 @@ void execute(CPU* cpu, uint16_t opcode) {
                     cpu->v[x] = cpu->v[y] - cpu->v[x];              // Check for overflow
                     break;
                 case 0xE:
-#ifdef ORIGINAL_CHIP
-                    cpu->v[x] = cpu->v[y];
-#endif
+                    if (cpu->original_mode == 1) {
+                        cpu->v[x] = cpu->v[y];
+                    }
                     // shift one bit to the left
                     cpu->v[0xF] = (cpu->v[x] >> 7) & 0b1;
                     cpu->v[x] = cpu->v[x] << 1;
@@ -232,11 +232,13 @@ void execute(CPU* cpu, uint16_t opcode) {
         case 0xB:
             // There is only one instruction whose first nibble is B
             // But it's ambiguous :/
-#ifdef ORIGINAL_CHIP
-            cpu->PC = cpu->v[0] + nnn;
-#else
-            cpu->PC = cpu->v[x] + nnn;
-#endif
+            if (cpu->original_mode == 1) {
+                cpu->PC = cpu->v[0] + nnn;
+
+            } else {
+                cpu->PC = cpu->v[x] + nnn;
+
+            }
             break;
         case 0xC: {
             // There is only one instruction whose first nibble is C
@@ -374,25 +376,25 @@ void execute(CPU* cpu, uint16_t opcode) {
 int load_rom(CPU* cpu, const char* filename) {
     FILE* rom = fopen(filename, "rb");
     if (rom == NULL) {
-        printf("Error opening ROM file\n");
+        print_error(ERROR_ROM_OPEN, "Could not open ROM file");
         return -1;
     }
 
     // Get the file size
     fseek(rom, 0, SEEK_END);
-    long rom_size = ftell(rom);
+    size_t rom_size = ftell(rom);
     rewind(rom);
 
     // Make sure the rom fits in the memory
     if (rom_size > MEM_SIZE - START_PROGRAM_MEM) {
-        printf("Error ROM too large\n");
+        print_error(ERROR_ROM_SIZE, "ROM file too large");
         return -1;
     }
 
     // Load rom into memory starting at START_PROGRAM_MEM (0x200)
     size_t bytes_read = fread(&cpu->memory[START_PROGRAM_MEM], 1, rom_size, rom);
     if (bytes_read != rom_size) {
-        printf("Error reading ROM file\n");
+        print_error(ERROR_ROM_SIZE, "Could not read ROM file");
         fclose(rom);
         return -1;
     }

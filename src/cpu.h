@@ -25,6 +25,7 @@ typedef struct {
     uint8_t sound_timer;                    // Something something sound
     uint8_t framebuffer[FRAMEBUFFER_SIZE];  // 64 * 32 pixels display
     uint8_t keypad[NUM_KEYS];               // Array to represent the 16 keys available
+    uint8_t original_mode;                  // Flag to determine whether we use a CHIP-8 or SUPER-CHIP
 } CPU;
 
 static const uint8_t keymap[NUM_KEYS] = {

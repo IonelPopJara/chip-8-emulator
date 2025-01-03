@@ -1,25 +1,57 @@
+#include <getopt.h>
 #include "cpu.h"
 #include "display.h"
+#include "error.h"
 
 const uint32_t REFRESH_RATE = 1000 / 60; // 60 Hz
 uint32_t CLOCK_SPEED = 1000 / 700; // 700 instructions per second
 
 int main(int argc, char** argv) {
+    char* rom_path = NULL;
+    uint32_t clock_speed = 700;
+    int original_mode = 0;
+
+    int opt;
+    while ((opt = getopt(argc, argv, "r:c:o")) != -1) {
+        switch(opt) {
+            case 'r':
+                rom_path = optarg;
+                break;
+            case 'c':
+                clock_speed = atoi(optarg);
+                break;
+            case 'o':
+                original_mode = 1;
+                break;
+            default:
+                printf("Usage: %s -r rom_path [-c clock_speed] [-o]\n", argv[0]);
+                return 1;
+        }
+    }
+
+    if (rom_path == NULL) {
+        print_error(ERROR_MISSING_ARGS, "Rom path is required");
+        return 1;
+    }
+
+    CLOCK_SPEED = 1000 / clock_speed;
 
     CPU cpu;
     if (initialize_cpu(&cpu) < 0) {
-        printf("Error!\n");
+        print_error(ERROR_CPU_INIT, "CPU could not be initialized");
         return 1;
     }
+
+    cpu.original_mode = original_mode;
 
     Display display;
     if (initialize_display(&display) < 0) {
-        printf("Error!\n");
+        print_error(ERROR_DISPLAY_INIT, "Display could not be initialized");
         return 1;
     }
 
-    if (load_rom(&cpu, "./src/ibm_logo.ch8") < 0) {
-        printf("Error!\n");
+    if (load_rom(&cpu, rom_path) < 0) {
+        print_error(ERROR_ROM_LOAD, "ROM could not be loaded");
         return 1;
     }
 
